@@ -184,3 +184,27 @@ body {
 .purchase-btn:hover {
   background-color: #45a049;
 }
+
+.styled-remove-btn {
+  background-color: #ff4d4d;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: background-color 0.3s ease, transform 0.2s;
+}
+
+.styled-remove-btn:hover {
+  background-color: #cc0000;
+  transform: scale(1.05);
+}
+
+.styled-remove-btn svg {
+  margin-right: 5px;
+}
+

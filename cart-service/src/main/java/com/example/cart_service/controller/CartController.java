@@ -35,6 +35,7 @@ public class CartController {
         return "Item removed from cart successfully.";
     }
 
+
     @DeleteMapping
     public String clearCart() {
         cartService.clearCart();
@@ -46,4 +47,5 @@ public class CartController {
         cartService.clearCart();
         return "Purchase successful and cart cleared.";
     }
+
 }

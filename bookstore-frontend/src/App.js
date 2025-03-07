@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { FaShoppingCart, FaBook } from 'react-icons/fa'; // Book icon added
-import { BrowserRouter as Router, Route, Routes, Link } from 'react-router-dom';
+import { FaShoppingCart, FaBook, FaTrash } from 'react-icons/fa';
+import { BrowserRouter as Router } from 'react-router-dom';
 import './App.css';
 
 function App() {
@@ -17,25 +17,6 @@ function App() {
             .catch(error => console.error('Error fetching books:', error));
     }, []);
 
-    useEffect(() => {
-        axios.get('http://localhost:8081/api/cart')
-            .then(response => {
-                setCartItems(response.data);
-                setCartCount(response.data.length);
-            })
-            .catch(error => console.error('Error fetching cart items:', error));
-    }, []);
-
-    const addToCart = (bookId) => {
-        axios.post('http://localhost:8081/api/cart', { bookId, quantity: 1 })
-            .then(() => {
-                setCartCount(prevCount => prevCount + 1);
-                fetchCartItems();
-                alert('Added to cart!');
-            })
-            .catch(error => console.error('Error adding to cart:', error));
-    };
-
     const fetchCartItems = () => {
         axios.get('http://localhost:8081/api/cart')
             .then(response => {
@@ -45,23 +26,37 @@ function App() {
             .catch(error => console.error('Error fetching cart items:', error));
     };
 
+    useEffect(fetchCartItems, []);
+
+    const addToCart = (bookId) => {
+        axios.post('http://localhost:8081/api/cart', { bookId, quantity: 1 })
+            .then(() => {
+                fetchCartItems();
+                alert('Added to cart!');
+            })
+            .catch(error => console.error('Error adding to cart:', error));
+    };
+
+    const removeFromCart = (id) => {
+        axios.delete(`http://localhost:8081/api/cart/${id}`)
+            .then(() => fetchCartItems())
+            .catch(error => console.error('Error removing from cart:', error));
+    };
+
     const calculateTotalPrice = () => {
         return cartItems.reduce((total, item) => {
             const book = books.find(book => book.id === item.bookId);
-            if (book) {
-                return total + book.price * item.quantity;
-            }
-            return total;
+            return book ? total + book.price * item.quantity : total;
         }, 0).toFixed(2);
     };
 
     const handlePurchase = () => {
-        alert('Thank you for your purchase!');
         axios.delete('http://localhost:8081/api/cart')
             .then(() => {
                 setCartItems([]);
                 setCartCount(0);
                 setIsCartVisible(false);
+                alert('Thank you for your purchase!');
             })
             .catch(error => console.error('Error clearing cart:', error));
     };
@@ -90,31 +85,28 @@ function App() {
                 </div>
 
                 <div className="book-list">
-                    {books.length === 0 ? (
-                        <p className="no-books-found">No books found</p>
-                    ) : (
-                        books
-                            .filter(book =>
-                                book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                book.author.toLowerCase().includes(searchTerm.toLowerCase())
-                            )
-                            .map(book => (
-                                <div key={book.id} className="book-card">
-                                    <div className="book-info">
-                                        <h3 className="book-title">{book.title}</h3>
-                                        <p className="book-author">by {book.author}</p>
-                                        <p className="book-price">${book.price}</p>
-                                    </div>
-                                    <button
-                                        onClick={() => addToCart(book.id)}
-                                        className="add-to-cart-btn"
-                                    >
-                                        Add to Cart
-                                    </button>
-                                </div>
-                            ))
-                    )}
+                    {books.filter(book =>
+                        book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        book.author.toLowerCase().includes(searchTerm.toLowerCase())
+                    ).map(book => (
+                        <div key={book.id} className="book-card">
+                            <div className="book-info">
+                                <h3 className="book-title">{book.title}</h3>
+                                <p className="book-author">by {book.author}</p>
+                                <p className="book-price">${book.price}</p>
+                            </div>
+                            <button onClick={() => addToCart(book.id)} className="add-to-cart-btn">
+                                Add to Cart
+                            </button>
+                        </div>
+                    ))}
                 </div>
+
+                {cartItems.length > 0 && (
+                    <button onClick={handlePurchase} className="purchase-btn front-page-purchase">
+                        Complete Purchase
+                    </button>
+                )}
 
                 {isCartVisible && (
                     <div className="cart-modal">
@@ -127,24 +119,24 @@ function App() {
                                 ) : (
                                     cartItems.map(item => {
                                         const book = books.find(b => b.id === item.bookId);
-                                        return (
-                                            book && (
-                                                <div key={item.id} className="cart-item">
-                                                    <FaBook size={24} className="book-icon" />
-                                                    <div>
-                                                        <p>Title: {book.title}</p>
-                                                        <p>Author: {book.author}</p>
-                                                        <p>Price: ${book.price}</p>
-                                                        <p>Quantity: {item.quantity}</p>
-                                                        <p>Total: ${(book.price * item.quantity).toFixed(2)}</p>
-                                                    </div>
+                                        return book && (
+                                            <div key={item.id} className="cart-item">
+                                                <FaBook size={24} className="book-icon" />
+                                                <div>
+                                                    <p>Title: {book.title}</p>
+                                                    <p>Author: {book.author}</p>
+                                                    <p>Price: ${book.price}</p>
+                                                    <p>Quantity: {item.quantity}</p>
+                                                    <p>Total: ${(book.price * item.quantity).toFixed(2)}</p>
                                                 </div>
-                                            )
+                                                <button onClick={() => removeFromCart(item.id)} className="remove-btn styled-remove-btn">
+                                                    <FaTrash /> Remove
+                                                </button>
+                                            </div>
                                         );
                                     })
                                 )}
                             </div>
-
                             {cartItems.length > 0 && (
                                 <>
                                     <div className="total-price">

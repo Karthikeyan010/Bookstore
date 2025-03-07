@@ -33,5 +33,4 @@ public class CartService {
     public void removeFromCart(Long id) {
         cartRepository.deleteById(id);
     }
-
 }
