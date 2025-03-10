@@ -1,0 +1,54 @@
+name: CI/CD for React + Spring Boot on GKE
+
+on:
+  push:
+    branches:
+      - main 
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GKE_CLUSTER: ${{ secrets.GKE_CLUSTER }}
+  GKE_ZONE: ${{ secrets.GKE_ZONE }}
+  REACT_IMAGE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/bookstore-frontend
+  SPRING_IMAGE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/cart-service
+  CATALOG_IMAGE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/catalog-service
+
+jobs:
+  build:
+    name: Build & Deploy to GKE
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Authenticate with Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Build & Push React Frontend Docker Image
+        run: |
+          docker build -t $REACT_IMAGE:latest ./frontend
+          docker push $REACT_IMAGE:latest
+
+      - name: Build & Push Spring Boot Backend Docker Image
+        run: |
+          docker build -t $SPRING_IMAGE:latest ./backend
+          docker push $SPRING_IMAGE:latest
+
+      - name: Build & Push Catalog Service Docker Image
+        run: |
+          docker build -t $CATALOG_IMAGE:latest ./catalog
+          docker push $CATALOG_IMAGE:latest
+
+      - name: Get GKE Credentials
+        run: |
+          gcloud container clusters get-credentials $GKE_CLUSTER --zone $GKE_ZONE --project $PROJECT_ID
+
+      - name: Deploy to GKE
+        run: |
+          kubectl apply -f k8s/
