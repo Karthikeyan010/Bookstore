@@ -42,17 +42,17 @@ jobs:
 
       - name: Build & Push React Frontend Docker Image
         run: |
-          docker build -t $REACT_IMAGE:latest ./bookstore-frontend  # Updated path
+          docker build -t $REACT_IMAGE:latest ./bookstore-frontend  
           docker push $REACT_IMAGE:latest
 
       - name: Build & Push Spring Boot Backend (Cart Service) Docker Image
         run: |
-          docker build -t $SPRING_IMAGE:latest ./cart-service  # Updated path
+          docker build -t $SPRING_IMAGE:latest ./cart-service  
           docker push $SPRING_IMAGE:latest
 
       - name: Build & Push Catalog Service Docker Image
         run: |
-          docker build -t $CATALOG_IMAGE:latest ./catalog-service  # Updated path
+          docker build -t $CATALOG_IMAGE:latest ./catalog-service  
           docker push $CATALOG_IMAGE:latest
 
       - name: Get GKE Credentials
