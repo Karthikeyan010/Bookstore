@@ -38,11 +38,20 @@ jobs:
           export_environment_variables: true
           cleanup_credentials: true
 
-      - name: 🛠 Set Up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
+      - name: 🛠 Install Google Cloud SDK & GKE Auth Plugin
+        run: |
+          gcloud components install gke-gcloud-auth-plugin
+          echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
 
       - name: 🛠 Configure Docker Authentication for GCR
         run: gcloud auth configure-docker gcr.io
+
+      ### **Ensure the service account has correct permissions**
+      - name: 🔑 Grant Artifact Registry Access to GitHub Actions
+        run: |
+          gcloud projects add-iam-policy-binding $PROJECT_ID \
+            --member="serviceAccount:${{ secrets.GCP_SA_EMAIL }}" \
+            --role="roles/artifactregistry.writer"
 
       ### **Build Spring Boot JAR Files Before Dockerizing**
       - name: 🏗️ Build Spring Boot Application (Cart Service)
@@ -61,6 +70,7 @@ jobs:
           ls -l target/  # Verify JAR file exists
           cd ..
 
+      ### **Build & Push Docker Images**
       - name: 🏗️ Build & Push React Frontend Docker Image
         run: |
           docker build -t $REACT_IMAGE:latest ./bookstore-frontend
@@ -68,12 +78,12 @@ jobs:
 
       - name: 🏗️ Build & Push Spring Boot Backend (Cart Service) Docker Image
         run: |
-          docker build -t $SPRING_IMAGE:latest ./cart-service
+          docker build -t $SPRING_IMAGE:latest --build-arg JAR_FILE=target/cart-service-0.0.1-SNAPSHOT.jar ./cart-service
           docker push $SPRING_IMAGE:latest
 
       - name: 🏗️ Build & Push Catalog Service Docker Image
         run: |
-          docker build -t $CATALOG_IMAGE:latest ./catalog-service
+          docker build -t $CATALOG_IMAGE:latest --build-arg JAR_FILE=target/catalog-service-0.0.1-SNAPSHOT.jar ./catalog-service
           docker push $CATALOG_IMAGE:latest
 
       - name: 🔗 Get GKE Credentials
