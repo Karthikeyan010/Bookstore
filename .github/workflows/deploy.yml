@@ -44,6 +44,15 @@ jobs:
       - name: 🛠 Configure Docker Authentication for GCR
         run: gcloud auth configure-docker gcr.io
 
+      ### **Build Spring Boot JAR File Before Dockerizing**
+      - name: 🏗️ Build Spring Boot Application (Cart Service)
+        run: |
+          cd cart-service
+          chmod +x mvnw  # Ensure wrapper is executable
+          ./mvnw clean package -DskipTests  # Build the JAR file
+          ls -l target/  # Verify JAR file exists
+          cd ..
+
       - name: 🏗️ Build & Push React Frontend Docker Image
         run: |
           docker build -t $REACT_IMAGE:latest ./bookstore-frontend
