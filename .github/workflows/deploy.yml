@@ -26,6 +26,9 @@ jobs:
         uses: google-github-actions/auth@v1
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
+          create_credentials_file: true
+          export_environment_variables: true
+          cleanup_credentials: true
 
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
@@ -49,6 +52,14 @@ jobs:
         run: |
           gcloud container clusters get-credentials $GKE_CLUSTER --zone $GKE_ZONE --project $PROJECT_ID
 
+      - name: Verify Kubernetes Cluster Connection
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+
       - name: Deploy to GKE
         run: |
           kubectl apply -f k8s/
+          kubectl rollout status deployment/bookstore-frontend
+          kubectl rollout status deployment/cart-service
+          kubectl rollout status deployment/catalog-service
