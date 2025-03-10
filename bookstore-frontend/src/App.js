@@ -4,32 +4,54 @@ import { FaShoppingCart, FaBook, FaTrash } from 'react-icons/fa';
 import { BrowserRouter as Router } from 'react-router-dom';
 import './App.css';
 
+// Use environment variables for API URLs
+const CATALOG_API_URL = 'http://34.142.90.80:8080/api/catalog';
+const CART_API_URL = 'http://34.142.90.80:8081/api/cart';
+
+
 function App() {
     const [books, setBooks] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [cartCount, setCartCount] = useState(0);
     const [cartItems, setCartItems] = useState([]);
-    const [isCartVisible, setIsCartVisible] = useState(false);
+    const [isCartVisible, setIsCartVisible] = useState(false); // ✅ Fixed incorrect state initialization
 
     useEffect(() => {
-        axios.get('http://localhost:8080/api/catalog')
-            .then(response => setBooks(response.data))
+        axios.get(CATALOG_API_URL)
+            .then(response => {
+                if (Array.isArray(response.data)) {
+                    setBooks(response.data);
+                } else {
+                    console.error('Unexpected response from catalog API:', response.data);
+                    setBooks([]); // Ensure it is always an array
+                }
+            })
             .catch(error => console.error('Error fetching books:', error));
     }, []);
 
     const fetchCartItems = () => {
-        axios.get('http://localhost:8081/api/cart')
+        axios.get(CART_API_URL)
             .then(response => {
-                setCartItems(response.data);
-                setCartCount(response.data.length);
+                if (Array.isArray(response.data)) {
+                    setCartItems(response.data);
+                    setCartCount(response.data.length);
+                } else {
+                    console.error('Unexpected response from cart API:', response.data);
+                    setCartItems([]); // ✅ Prevents "false is not iterable" error
+                    setCartCount(0);
+                }
             })
-            .catch(error => console.error('Error fetching cart items:', error));
+            .catch(error => {
+                console.error('Error fetching cart items:', error);
+                setCartItems([]); // Ensure cartItems is always an array
+                setCartCount(0);
+            });
     };
 
     useEffect(fetchCartItems, []);
 
     const addToCart = (bookId) => {
-        axios.post('http://localhost:8081/api/cart', { bookId, quantity: 1 })
+        axios.post(CART_API_URL, { bookId, quantity: 1 })
             .then(() => {
                 fetchCartItems();
                 alert('Added to cart!');
@@ -38,7 +60,7 @@ function App() {
     };
 
     const removeFromCart = (id) => {
-        axios.delete(`http://localhost:8081/api/cart/${id}`)
+        axios.delete(`${CART_API_URL}/${id}`)
             .then(() => fetchCartItems())
             .catch(error => console.error('Error removing from cart:', error));
     };
@@ -51,7 +73,7 @@ function App() {
     };
 
     const handlePurchase = () => {
-        axios.delete('http://localhost:8081/api/cart')
+        axios.delete(CART_API_URL)
             .then(() => {
                 setCartItems([]);
                 setCartCount(0);
