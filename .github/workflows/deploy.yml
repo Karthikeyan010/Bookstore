@@ -41,6 +41,11 @@ jobs:
       - name: 🛠 Set Up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
+      - name: 🛠 Install GKE Authentication Plugin
+        run: |
+          gcloud components install gke-gcloud-auth-plugin
+          echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
+
       - name: 🛠 Configure Docker Authentication for GCR
         run: gcloud auth configure-docker gcr.io
 
@@ -68,12 +73,12 @@ jobs:
 
       - name: 🏗️ Build & Push Spring Boot Backend (Cart Service) Docker Image
         run: |
-          docker build -t $SPRING_IMAGE:latest ./cart-service
+          docker build --build-arg JAR_FILE=target/cart-service-0.0.1-SNAPSHOT.jar -t $SPRING_IMAGE:latest ./cart-service
           docker push $SPRING_IMAGE:latest
 
       - name: 🏗️ Build & Push Catalog Service Docker Image
         run: |
-          docker build -t $CATALOG_IMAGE:latest ./catalog-service
+          docker build --build-arg JAR_FILE=target/catalog-service-0.0.1-SNAPSHOT.jar -t $CATALOG_IMAGE:latest ./catalog-service
           docker push $CATALOG_IMAGE:latest
 
       - name: 🔗 Get GKE Credentials
@@ -88,7 +93,16 @@ jobs:
           
       - name: 🚀 Deploy to GKE
         run: |
-          kubectl apply -f k8s/  # Updated path to Kubernetes manifests
+          kubectl apply -f k8s/
           kubectl rollout status deployment/bookstore-frontend
           kubectl rollout status deployment/cart-service
           kubectl rollout status deployment/catalog-service
+
+      - name: 🛠 Debug Kubernetes Pods & Logs
+        if: failure()
+        run: |
+          kubectl get pods -A
+          kubectl describe pods -A
+          kubectl logs -l app=bookstore-frontend --tail=50
+          kubectl logs -l app=cart-service --tail=50
+          kubectl logs -l app=catalog-service --tail=50
