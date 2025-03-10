@@ -19,18 +19,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: 📥 Checkout Repository
         uses: actions/checkout@v3
         with:
           fetch-depth: 0  # Ensures full repo checkout
 
-      - name: Debug - Verify Repository Structure
+      - name: 🛠 Debug - Verify Repository Structure
         run: |
           echo "Current Directory: $(pwd)"
           echo "List of files and directories:"
           ls -R  # Print all files & directories for debugging
 
-      - name: Authenticate with Google Cloud
+      - name: 🔑 Authenticate with Google Cloud
         uses: google-github-actions/auth@v1
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
@@ -38,34 +38,38 @@ jobs:
           export_environment_variables: true
           cleanup_credentials: true
 
-      - name: Set up Google Cloud SDK
+      - name: 🛠 Set Up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
-      - name: Build & Push React Frontend Docker Image
+      - name: 🛠 Configure Docker Authentication for GCR
+        run: gcloud auth configure-docker gcr.io
+
+      - name: 🏗️ Build & Push React Frontend Docker Image
         run: |
-          docker build -t $REACT_IMAGE:latest ./bookstore-frontend  # Updated path
+          docker build -t $REACT_IMAGE:latest ./bookstore-frontend
           docker push $REACT_IMAGE:latest
 
-      - name: Build & Push Spring Boot Backend (Cart Service) Docker Image
+      - name: 🏗️ Build & Push Spring Boot Backend (Cart Service) Docker Image
         run: |
-          docker build -t $SPRING_IMAGE:latest ./cart-service  # Updated path
+          docker build -t $SPRING_IMAGE:latest ./cart-service
           docker push $SPRING_IMAGE:latest
 
-      - name: Build & Push Catalog Service Docker Image
+      - name: 🏗️ Build & Push Catalog Service Docker Image
         run: |
-          docker build -t $CATALOG_IMAGE:latest ./catalog-service  # Updated path
+          docker build -t $CATALOG_IMAGE:latest ./catalog-service
           docker push $CATALOG_IMAGE:latest
 
-      - name: Get GKE Credentials
+      - name: 🔗 Get GKE Credentials
         run: |
           gcloud container clusters get-credentials $GKE_CLUSTER --zone $GKE_ZONE --project $PROJECT_ID
 
-      - name: Verify Kubernetes Cluster Connection
+      - name: 🔎 Verify Kubernetes Cluster Connection
         run: |
           kubectl cluster-info
           kubectl get nodes
-
-      - name: Deploy to GKE
+          kubectl get pods --all-namespaces
+          
+      - name: 🚀 Deploy to GKE
         run: |
           kubectl apply -f k8s/  # Updated path to Kubernetes manifests
           kubectl rollout status deployment/bookstore-frontend
