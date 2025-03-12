@@ -5,8 +5,8 @@ import { BrowserRouter as Router } from 'react-router-dom';
 import './App.css';
 
 // Use environment variables for API URLs
-const CATALOG_API_URL = 'http://34.147.185.149:8080/api/catalog';
-const CART_API_URL = 'http://34.142.90.80:8081/api/cart';
+const CATALOG_API_URL = 'http://catalog-service:8080/api/catalog';
+const CART_API_URL = 'http://cart-service:8081/api/cart';
 
 
 function App() {
