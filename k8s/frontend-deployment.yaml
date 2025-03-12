@@ -19,6 +19,6 @@ spec:
             - containerPort: 80
           env:
             - name: REACT_APP_CATALOG_API_URL
-              value: "http://bookstore-catalog-service:8080/api/catalog"
+              value: "http://34.142.90.80:8080/api/catalog"
             - name: REACT_APP_CART_API_URL
               value: "http://bookstore-cart-service:8081/api/cart"
