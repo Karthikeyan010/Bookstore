@@ -11,7 +11,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/catalog")
-                .allowedOrigins("http://localhost:3000") // Allow frontend URL
+                .allowedOrigins("http://34.142.90.80:8080") // Allow frontend URL
                 .allowedMethods("GET"); // Allow GET request
     }
 }
