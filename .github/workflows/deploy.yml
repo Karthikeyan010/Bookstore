@@ -94,6 +94,8 @@ jobs:
       - name: 🚀 Deploy to GKE
         run: |
           kubectl apply -f k8s/
+          kubectl rollout restart deployment/cart-service
+          kubectl rollout restart deployment/catalog-service
           kubectl rollout status deployment/bookstore-frontend
           kubectl rollout status deployment/cart-service
           kubectl rollout status deployment/catalog-service
