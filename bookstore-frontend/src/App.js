@@ -5,7 +5,11 @@ import { BrowserRouter as Router } from 'react-router-dom';
 import './App.css';
 
 // Use environment variables for API URLs
-const CATALOG_API_URL = 'http://34.147.185.149:8080/api/catalog';
+const CATALOG_API_URL = 'http://34.142.90.80:8080/api/catalog';
+fetch(API_URL)
+  .then(response => response.json())
+  .then(data => console.log(data)) // Check if data is received
+  .catch(error => console.error("Error fetching books:", error));
 const CART_API_URL = 'http://34.142.90.80:8081/api/cart';
 
 
