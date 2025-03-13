@@ -24,3 +24,10 @@ spec:
               value: "postgres"
             - name: DB_PASSWORD
               value: "password"
+          resources:
+            requests:
+              memory: "350Mi"
+              cpu: "300m"
+            limits:
+              memory: "512Mi"
+              cpu: "450m"
