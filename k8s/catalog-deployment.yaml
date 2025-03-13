@@ -26,8 +26,8 @@ spec:
               value: "password"
           resources:
             requests:
-              memory: "150Mi"
-              cpu: "300m"
+              memory: "350Mi"
+              cpu: "150m"
             limits:
-              memory: "512Mi"
+              memory: "450Mi"
               cpu: "200m"
