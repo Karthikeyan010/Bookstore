@@ -6,13 +6,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
-
 
 @RestController
 @RequestMapping("/api/catalog")
 public class BookController {
+
+    private static final Logger logger = LoggerFactory.getLogger(BookController.class);
 
     private final BookService bookService;
 
@@ -23,6 +26,9 @@ public class BookController {
 
     @GetMapping
     public List<Book> getAllBooks() {
-        return bookService.getAllBooks();
+        logger.info("Request received to get all books");
+        List<Book> books = bookService.getAllBooks();
+        logger.info("Returning {} books", books.size());
+        return books;
     }
 }
