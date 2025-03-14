@@ -35,5 +35,5 @@ spec:
             httpGet:
               path: /actuator/health  # Ensure this returns 200 when the app is truly ready
               port: 8080
-            initialDelaySeconds: 120  # Wait before marking pod as ready
+            initialDelaySeconds: 30  # Wait before marking pod as ready
             periodSeconds: 10
