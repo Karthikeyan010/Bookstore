@@ -9,8 +9,9 @@ env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   GKE_CLUSTER: ${{ secrets.GKE_CLUSTER }}
   GKE_ZONE: ${{ secrets.GKE_ZONE }}
+  COMMIT_SHA: ${{ github.sha }} # Unique image tag per commit
   REACT_IMAGE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/bookstore-frontend
-  SPRING_IMAGE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/cart-service
+  CART_IMAGE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/cart-service
   CATALOG_IMAGE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/catalog-service
 
 jobs:
@@ -24,11 +25,41 @@ jobs:
         with:
           fetch-depth: 0  # Ensures full repo checkout
 
-      - name: 🛠 Debug - Verify Repository Structure
+      - name: 🔎 Detect Changes
+        id: changes
         run: |
-          echo "Current Directory: $(pwd)"
-          echo "List of files and directories:"
-          ls -R  # Print all files & directories for debugging
+          git fetch origin main --depth=1
+          echo "Checking for changes..."
+          
+          CHANGED_FILES=$(git diff --name-only HEAD^ HEAD)
+
+          echo "Changed files: $CHANGED_FILES"
+
+          # Detect application source code changes
+          if echo "$CHANGED_FILES" | grep -q "bookstore-frontend/"; then
+            echo "REACT_CHANGED=true" >> $GITHUB_ENV
+          fi
+
+          if echo "$CHANGED_FILES" | grep -q "cart-service/"; then
+            echo "CART_CHANGED=true" >> $GITHUB_ENV
+          fi
+
+          if echo "$CHANGED_FILES" | grep -q "catalog-service/"; then
+            echo "CATALOG_CHANGED=true" >> $GITHUB_ENV
+          fi
+
+          # Detect Kubernetes deployment file changes
+          if echo "$CHANGED_FILES" | grep -q "k8s/bookstore-frontend-deployment.yaml"; then
+            echo "REACT_DEPLOYMENT_CHANGED=true" >> $GITHUB_ENV
+          fi
+
+          if echo "$CHANGED_FILES" | grep -q "k8s/cart-service-deployment.yaml"; then
+            echo "CART_DEPLOYMENT_CHANGED=true" >> $GITHUB_ENV
+          fi
+
+          if echo "$CHANGED_FILES" | grep -q "k8s/catalog-service-deployment.yaml"; then
+            echo "CATALOG_DEPLOYMENT_CHANGED=true" >> $GITHUB_ENV
+          fi
 
       - name: 🔑 Authenticate with Google Cloud
         uses: google-github-actions/auth@v1
@@ -41,71 +72,71 @@ jobs:
       - name: 🛠 Set Up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
-      - name: 🛠 Install GKE Authentication Plugin
-        run: |
-          gcloud components install gke-gcloud-auth-plugin
-          echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
-
       - name: 🛠 Configure Docker Authentication for GCR
         run: gcloud auth configure-docker gcr.io
 
-      ### **Build Spring Boot JAR Files Before Dockerizing**
-      - name: 🏗️ Build Spring Boot Application (Cart Service)
+      # 🏗️ Build and Push only if the service source code changed
+      - name: 🏗️ Build & Push React Frontend Docker Image
+        if: env.REACT_CHANGED == 'true'
+        run: |
+          docker build -t $REACT_IMAGE:$COMMIT_SHA ./bookstore-frontend
+          docker push $REACT_IMAGE:$COMMIT_SHA
+
+      - name: 🏗️ Build & Push Cart Service Docker Image
+        if: env.CART_CHANGED == 'true'
         run: |
           cd cart-service
           chmod +x mvnw  # Ensure wrapper is executable
-          ./mvnw clean package -DskipTests  # Build the JAR file
-          ls -l target/  # Verify JAR file exists
+          ./mvnw clean package -DskipTests
+          docker build --build-arg JAR_FILE=target/cart-service-0.0.1-SNAPSHOT.jar -t $CART_IMAGE:$COMMIT_SHA .
+          docker push $CART_IMAGE:$COMMIT_SHA
           cd ..
 
-      - name: 🏗️ Build Spring Boot Application (Catalog Service)
+      - name: 🏗️ Build & Push Catalog Service Docker Image
+        if: env.CATALOG_CHANGED == 'true'
         run: |
           cd catalog-service
           chmod +x mvnw  # Ensure wrapper is executable
-          ./mvnw clean package -DskipTests  # Build the JAR file
-          ls -l target/  # Verify JAR file exists
+          ./mvnw clean package -DskipTests
+          docker build --build-arg JAR_FILE=target/catalog-service-0.0.1-SNAPSHOT.jar -t $CATALOG_IMAGE:$COMMIT_SHA .
+          docker push $CATALOG_IMAGE:$COMMIT_SHA
           cd ..
-
-      - name: 🏗️ Build & Push React Frontend Docker Image
-        run: |
-          docker build -t $REACT_IMAGE:latest ./bookstore-frontend
-          docker push $REACT_IMAGE:latest
-
-      - name: 🏗️ Build & Push Spring Boot Backend (Cart Service) Docker Image
-        run: |
-          docker build --build-arg JAR_FILE=target/cart-service-0.0.1-SNAPSHOT.jar -t $SPRING_IMAGE:latest ./cart-service
-          docker push $SPRING_IMAGE:latest
-
-      - name: 🏗️ Build & Push Catalog Service Docker Image
-        run: |
-          docker build --build-arg JAR_FILE=target/catalog-service-0.0.1-SNAPSHOT.jar -t $CATALOG_IMAGE:latest ./catalog-service
-          docker push $CATALOG_IMAGE:latest
 
       - name: 🔗 Get GKE Credentials
         run: |
           gcloud container clusters get-credentials $GKE_CLUSTER --zone $GKE_ZONE --project $PROJECT_ID
 
-      - name: 🔎 Verify Kubernetes Cluster Connection
+      - name: 🚀 Deploy to GKE (Only Changed Deployments)
         run: |
-          kubectl cluster-info
-          kubectl get nodes
-          kubectl get pods --all-namespaces
-          
-      - name: 🚀 Deploy to GKE
-        run: |
-          kubectl apply -f k8s/
-          kubectl rollout restart deployment/bookstore-frontend
-          kubectl rollout restart deployment/cart-service
-          kubectl rollout restart deployment/catalog-service
-          kubectl rollout status deployment/bookstore-frontend
-          kubectl rollout status deployment/cart-service
-          kubectl rollout status deployment/catalog-service
+          if [ "${{ env.REACT_DEPLOYMENT_CHANGED }}" == "true" ]; then
+            echo "Applying changes to bookstore-frontend deployment..."
+            kubectl apply -f k8s/bookstore-frontend-deployment.yaml
+            kubectl rollout status deployment/bookstore-frontend
+          fi
+
+          if [ "${{ env.CART_DEPLOYMENT_CHANGED }}" == "true" ]; then
+            echo "Applying changes to cart-service deployment..."
+            kubectl apply -f k8s/cart-service-deployment.yaml
+            kubectl rollout status deployment/cart-service
+          fi
+
+          if [ "${{ env.CATALOG_DEPLOYMENT_CHANGED }}" == "true" ]; then
+            echo "Applying changes to catalog-service deployment..."
+            kubectl apply -f k8s/catalog-service-deployment.yaml
+            kubectl rollout status deployment/catalog-service
+          fi
 
       - name: 🛠 Debug Kubernetes Pods & Logs
         if: failure()
         run: |
           kubectl get pods -A
           kubectl describe pods -A
-          kubectl logs -l app=bookstore-frontend --tail=50
-          kubectl logs -l app=cart-service --tail=50
-          kubectl logs -l app=catalog-service --tail=50
+          if [ "${{ env.REACT_CHANGED }}" == "true" ] || [ "${{ env.REACT_DEPLOYMENT_CHANGED }}" == "true" ]; then
+            kubectl logs -l app=bookstore-frontend --tail=50
+          fi
+          if [ "${{ env.CART_CHANGED }}" == "true" ] || [ "${{ env.CART_DEPLOYMENT_CHANGED }}" == "true" ]; then
+            kubectl logs -l app=cart-service --tail=50
+          fi
+          if [ "${{ env.CATALOG_CHANGED }}" == "true" ] || [ "${{ env.CATALOG_DEPLOYMENT_CHANGED }}" == "true" ]; then
+            kubectl logs -l app=catalog-service --tail=50
+          fi
