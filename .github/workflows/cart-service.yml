@@ -62,5 +62,5 @@ jobs:
         run: |
           kubectl apply -f k8s/cart-deployment.yaml
           kubectl apply -f k8s/cart-service.yaml
-          kubectl rollout restart deployment/cart-deployment
-          kubectl rollout status deployment/cart-deployment
+          kubectl rollout restart deployment/cart-service  
+          kubectl rollout status deployment/cart-service  

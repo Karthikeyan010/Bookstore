@@ -1,20 +1,25 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: catalog-service
+  name: catalog-service-green
+  labels:
+    app: catalog-service
+    version: green
 spec:
   replicas: 2
   selector:
     matchLabels:
       app: catalog-service
+      version: green
   template:
     metadata:
       labels:
         app: catalog-service
+        version: green
     spec:
       containers:
         - name: catalog-service
-          image: gcr.io/carbon-stone-453217-v8/catalog-service:latest
+          image: gcr.io/carbon-stone-453217-v8/catalog-service:v2
           ports:
             - containerPort: 8080
           env:
@@ -24,16 +29,3 @@ spec:
               value: "postgres"
             - name: DB_PASSWORD
               value: "password"
-          resources:
-            requests:
-              memory: "350Mi"
-              cpu: "150m"
-            limits:
-              memory: "450Mi"
-              cpu: "200m"
-          readinessProbe:
-            httpGet:
-              path: /actuator/health  # Ensure this returns 200 when the app is truly ready
-              port: 8080
-            initialDelaySeconds: 60  # Wait before marking pod as ready
-            periodSeconds: 10
