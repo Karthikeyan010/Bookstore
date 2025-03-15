@@ -14,8 +14,8 @@ env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   GKE_CLUSTER: ${{ secrets.GKE_CLUSTER }}
   GKE_ZONE: ${{ secrets.GKE_ZONE }}
-  CATALOG_IMAGE_BLUE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/catalog-service:blue
-  CATALOG_IMAGE_GREEN: gcr.io/${{ secrets.GCP_PROJECT_ID }}/catalog-service:green
+  CATALOG_IMAGE_BLUE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/catalog-service:v1
+  CATALOG_IMAGE_GREEN: gcr.io/${{ secrets.GCP_PROJECT_ID }}/catalog-service:v2
 
 jobs:
   build-and-deploy:
