@@ -38,6 +38,15 @@ jobs:
       - name: 🛠 Configure Docker Authentication for GCR
         run: gcloud auth configure-docker gcr.io
 
+      ### **Build the JAR File Before Dockerizing**
+      - name: 🏗️ Build Cart Service JAR
+        run: |
+          cd cart-service
+          chmod +x mvnw  # Ensure wrapper is executable
+          ./mvnw clean package -DskipTests
+          ls -l target/  # Verify JAR file exists
+          cd ..
+
       ### **Build & Push Cart Service Docker Image**
       - name: 🏗️ Build & Push Cart Service
         run: |
