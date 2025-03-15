@@ -30,6 +30,11 @@ jobs:
       - name: 🛠 Set Up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
+      - name: 🛠 Install GKE Authentication Plugin
+        run: |
+          gcloud components install gke-gcloud-auth-plugin
+          echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
+
       - name: 🛠 Configure Docker Authentication for GCR
         run: gcloud auth configure-docker gcr.io
 
