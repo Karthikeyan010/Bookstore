@@ -87,7 +87,7 @@ function App() {
         <Router>
             <div className="app-container">
                 <header className="app-header">
-                    <h1 className="header-title">Newcastle University Book Store--- new test newwwwwwwwww</h1>
+                    <h1 className="header-title">Newcastle University Book Store--- new test for pipeline</h1>
                     <div className="cart-container">
                         <button onClick={() => setIsCartVisible(true)} className="cart-button">
                             <FaShoppingCart size={24} />
