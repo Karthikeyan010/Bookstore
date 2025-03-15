@@ -43,7 +43,7 @@ public class CartController {
         logger.info("Removing item from cart with id: {}", id);
         cartService.removeFromCart(id);
         logger.info("Item removed from cart with id: {}", id);
-        return "Item removed from cart successfully!!!";
+        return "Item removed from cart successfully!!!!!";
     }
 
     @DeleteMapping
