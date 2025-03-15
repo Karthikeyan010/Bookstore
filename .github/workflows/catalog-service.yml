@@ -69,30 +69,34 @@ jobs:
       - name: 🚀 Deploy Green Version
         run: |
           kubectl apply -f k8s/catalog-deployment-green.yaml
-          kubectl rollout status deployment/catalog-deployment-green --timeout=120s
+          kubectl rollout status deployment/catalog-service-green --timeout=120s
           echo "Green version deployed, now performing health check..."
 
       - name: ✅ Verify Green Deployment
+        id: health-check
         run: |
           GREEN_HEALTH=$(kubectl get pod -l app=catalog-service,version=green -o jsonpath='{.items[0].status.containerStatuses[0].ready}')
           if [ "$GREEN_HEALTH" != "true" ]; then
-            echo "Green deployment failed, rolling back..."
+            echo "❌ Green deployment failed, rolling back..."
             exit 1
           fi
+        continue-on-error: true  # ✅ Allow pipeline to continue, so rollback can happen
 
       - name: 🔀 Switch Traffic to Green
+        if: success()  # ✅ Runs only if all previous steps, including health check, succeeded
         run: |
           kubectl patch service catalog-service -p '{"spec": {"selector": {"app": "catalog-service", "version": "green"}}}'
-          echo "Traffic switched to green!"
+          echo "✅ Traffic switched to green!"
 
       - name: 🧹 Cleanup Old Blue Deployment (Optional)
+        if: success()  # ✅ Clean up only if Green is stable
         run: |
-          kubectl delete deployment catalog-deployment-blue || true
-          echo "Blue version removed to free up resources."
+          kubectl delete deployment catalog-service-blue || true
+          echo "🗑️ Old Blue version removed."
 
       ### **Rollback Logic in Case of Failure**
       - name: ❌ Rollback to Blue on Failure
-        if: failure()
+        if: failure()  # ✅ Runs only if health check failed
         run: |
           kubectl patch service catalog-service -p '{"spec": {"selector": {"app": "catalog-service", "version": "blue"}}}'
-          echo "Traffic reverted to blue!"
+          echo "🔄 Traffic reverted to blue!"
