@@ -6,7 +6,7 @@ metadata:
     app: catalog-service
     version: green
 spec:
-  replicas: 0
+  replicas: 2
   selector:
     matchLabels:
       app: catalog-service
@@ -20,7 +20,7 @@ spec:
       containers:
         - name: catalog-service
           image: gcr.io/carbon-stone-453217-v8/catalog-service:v2
-          imagePullPolicy: Always 
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:
