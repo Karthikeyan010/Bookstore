@@ -1,0 +1,76 @@
+name: CI/CD for Catalog Service (Blue-Green Deployment)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "catalog-service/**"
+      - "k8s/catalog-deployment-blue.yaml"
+      - "k8s/catalog-deployment-green.yaml"
+      - "k8s/catalog-service.yaml"
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GKE_CLUSTER: ${{ secrets.GKE_CLUSTER }}
+  GKE_ZONE: ${{ secrets.GKE_ZONE }}
+  CATALOG_IMAGE_BLUE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/catalog-service:blue
+  CATALOG_IMAGE_GREEN: gcr.io/${{ secrets.GCP_PROJECT_ID }}/catalog-service:green
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: 🔑 Authenticate with Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: 🛠 Set Up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: 🛠 Configure Docker Authentication for GCR
+        run: gcloud auth configure-docker gcr.io
+
+      - name: 🏗️ Build & Push Catalog Service (Green)
+        run: |
+          docker build -t $CATALOG_IMAGE_GREEN ./catalog-service
+          docker push $CATALOG_IMAGE_GREEN
+
+      - name: 🔗 Get GKE Credentials
+        run: |
+          gcloud container clusters get-credentials $GKE_CLUSTER --zone $GKE_ZONE --project $PROJECT_ID
+
+      - name: 🚀 Deploy Green Version to GKE
+        run: |
+          kubectl apply -f k8s/catalog-deployment-green.yaml
+          kubectl rollout status deployment/catalog-deployment-green --timeout=120s
+          echo "Green version deployed, now performing health check..."
+
+      - name: ✅ Verify Green Deployment
+        run: |
+          GREEN_HEALTH=$(kubectl get pod -l app=catalog-service,version=green -o jsonpath='{.items[0].status.containerStatuses[0].ready}')
+          if [ "$GREEN_HEALTH" != "true" ]; then
+            echo "Green deployment failed, rolling back..."
+            exit 1
+          fi
+
+      - name: 🔀 Switch Traffic to Green
+        run: |
+          kubectl patch service catalog-service -p '{"spec": {"selector": {"app": "catalog-service", "version": "green"}}}'
+          echo "Traffic switched to Green."
+
+      - name: 🧹 Cleanup Old Blue Deployment (Optional)
+        run: |
+          kubectl delete deployment catalog-deployment-blue || true
+          echo "Blue version removed to free up resources."
+
+      ### **Rollback Logic in Case of Failure**
+      - name: ❌ Rollback to Blue on Failure
+        if: failure()
+        run: |
+          kubectl patch service catalog-service -p '{"spec": {"selector": {"app": "catalog-service", "version": "blue"}}}'
+          echo "Rolled back to Blue."
