@@ -1,0 +1,57 @@
+name: CI/CD for Cart Service
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "cart-service/**"
+      - "k8s/cart-deployment.yaml"
+      - "k8s/cart-service.yaml"
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GKE_CLUSTER: ${{ secrets.GKE_CLUSTER }}
+  GKE_ZONE: ${{ secrets.GKE_ZONE }}
+  CART_IMAGE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/cart-service
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: 🔑 Authenticate with Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: 🛠 Set Up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: 🛠 Install GKE Authentication Plugin
+        run: |
+          gcloud components install gke-gcloud-auth-plugin
+          echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
+
+      - name: 🛠 Configure Docker Authentication for GCR
+        run: gcloud auth configure-docker gcr.io
+
+      ### **Build & Push Cart Service Docker Image**
+      - name: 🏗️ Build & Push Cart Service
+        run: |
+          docker build --build-arg JAR_FILE=target/cart-service-0.0.1-SNAPSHOT.jar -t $CART_IMAGE:latest ./cart-service
+          docker push $CART_IMAGE:latest
+
+      - name: 🔗 Get GKE Credentials
+        run: |
+          gcloud container clusters get-credentials $GKE_CLUSTER --zone $GKE_ZONE --project $PROJECT_ID
+
+      ### **Deploy Cart Service to GKE**
+      - name: 🚀 Deploy Cart Service
+        run: |
+          kubectl apply -f k8s/cart-deployment.yaml
+          kubectl apply -f k8s/cart-service.yaml
+          kubectl rollout restart deployment/cart-deployment
+          kubectl rollout status deployment/cart-deployment
