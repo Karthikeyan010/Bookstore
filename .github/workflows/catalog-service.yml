@@ -45,7 +45,7 @@ jobs:
         run: |
           cd catalog-service
           chmod +x mvnw  # Ensure wrapper is executable
-          ./mvnw clean package -DskipTests
+          ./mvnw clean package 
           ls -l target/  # Verify JAR file exists
           cd ..
 
