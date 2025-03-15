@@ -51,5 +51,5 @@ jobs:
         run: |
           kubectl apply -f k8s/frontend-deployment.yaml
           kubectl apply -f k8s/frontend-service.yaml
-          kubectl rollout restart deployment/frontend-deployment
-          kubectl rollout status deployment/frontend-deployment
+          kubectl rollout restart deployment/bookstore-frontend
+          kubectl rollout status deployment/bookstore-frontend
