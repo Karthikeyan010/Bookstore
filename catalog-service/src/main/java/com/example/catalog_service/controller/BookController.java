@@ -26,7 +26,7 @@ public class BookController {
 
     @GetMapping
     public List<Book> getAllBooks() {
-        logger.info("Request received to get all books-testrolloutnew123456789111");
+        logger.info("Request received to get all books-testrolloutnew9876");
         List<Book> books = bookService.getAllBooks();
         logger.info("Returning {} books", books.size());
         return books;

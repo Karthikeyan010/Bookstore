@@ -89,22 +89,32 @@ jobs:
           ELAPSED=0
           STATUS="Progressing"  # Default status at start
 
+          # Debug: Print rollout details before checking status
+          kubectl-argo-rollouts get rollout catalog-service -o wide
+
           # Loop until rollout is Healthy or timeout is reached
           while [[ "$STATUS" != "Healthy" && "$ELAPSED" -lt "$TIMEOUT" ]]; do
-            STATUS=$(kubectl-argo-rollouts get rollout catalog-service -o jsonpath='{.status.phase}' 2>/dev/null || echo "Pending")
+            STATUS=$(kubectl-argo-rollouts get rollout catalog-service -o=jsonpath='{.status.phase}' 2>/dev/null || echo "Pending")
+            
             echo "⏳ Current Rollout Status: $STATUS"
+            
             if [[ "$STATUS" == "Healthy" ]]; then
               echo "✅ Rollout is healthy!"
               exit 0
             fi
+
+            # Debug: Show full rollout details every 30s
+            if (( ELAPSED % 30 == 0 )); then
+              kubectl-argo-rollouts get rollout catalog-service -o wide
+            fi
+
             sleep 10
             ELAPSED=$((ELAPSED + 10))
           done
 
           echo "❌ Rollout did not become healthy in time. Rolling back..."
-          kubectl-argo-rollouts abort catalog-service
-          kubectl-argo-rollouts undo catalog-service
           exit 1
+
 
       - name: 🔀 Promote Green to Active (Switch Traffic)
         run: |
@@ -115,4 +125,5 @@ jobs:
         if: failure()
         run: |
           kubectl-argo-rollouts abort catalog-service
+          kubectl-argo-rollouts undo catalog-service
           echo "🔄 Rollback complete."
