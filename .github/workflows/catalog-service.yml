@@ -85,7 +85,7 @@ jobs:
       - name: 🔎 Wait for Rollout Health Check
         run: |
           echo "⏳ Waiting for rollout to become healthy..."
-          TIMEOUT=180  # Maximum wait time in seconds
+          TIMEOUT=280  # Maximum wait time in seconds
           ELAPSED=0
           STATUS="Progressing"  # Default status at start
 
@@ -103,6 +103,7 @@ jobs:
 
           echo "❌ Rollout did not become healthy in time. Rolling back..."
           kubectl-argo-rollouts abort catalog-service
+          kubectl-argo-rollouts undo catalog-service
           exit 1
 
       - name: 🔀 Promote Green to Active (Switch Traffic)
