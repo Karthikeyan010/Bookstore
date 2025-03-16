@@ -46,6 +46,7 @@ jobs:
           ./mvnw clean package
           docker build -t $IMAGE_TAG .
           docker push $IMAGE_TAG
+          cd ..
 
       - name: 🔗 Get GKE Credentials
         run: |
