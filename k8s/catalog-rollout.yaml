@@ -19,8 +19,7 @@ spec:
     spec:
       containers:
         - name: catalog-service
-          image: gcr.io/carbon-stone-453217-v8/catalog-service:v4
-          imagePullPolicy: Always
+          image: gcr.io/carbon-stone-453217-v8/catalog-service:latest
           ports:
             - containerPort: 8080
           env:

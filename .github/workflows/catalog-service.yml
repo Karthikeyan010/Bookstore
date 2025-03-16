@@ -7,12 +7,13 @@ on:
     paths:
       - "catalog-service/**"
       - "k8s/catalog-rollout.yaml"
+      - "k8s/catalog-service-active.yaml"
+      - "k8s/catalog-service-preview.yaml"
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   GKE_CLUSTER: ${{ secrets.GKE_CLUSTER }}
   GKE_ZONE: ${{ secrets.GKE_ZONE }}
-  IMAGE_REPO: gcr.io/${{ secrets.GCP_PROJECT_ID }}/catalog-service
   IMAGE_TAG: gcr.io/${{ secrets.GCP_PROJECT_ID }}/catalog-service:${{ github.sha }}
 
 jobs:
@@ -30,11 +31,15 @@ jobs:
       - name: 🛠 Set Up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
-      - name: 🔗 Get GKE Credentials
+      - name: 🛠 Install GKE Authentication Plugin
         run: |
-          gcloud container clusters get-credentials $GKE_CLUSTER --zone $GKE_ZONE --project $PROJECT_ID
+          gcloud components install gke-gcloud-auth-plugin
+          echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
 
-      - name: 🏗️ Build & Push New Image with SHA Tag
+      - name: 🛠 Configure Docker Authentication for GCR
+        run: gcloud auth configure-docker gcr.io
+
+      - name: 🏗️ Build and Push Catalog Service Image
         run: |
           cd catalog-service
           chmod +x mvnw
@@ -43,48 +48,54 @@ jobs:
           docker push $IMAGE_TAG
           cd ..
 
-      - name: 🔎 Get Latest Image Digest (SHA)
-        id: image_digest
+      - name: 🔗 Get GKE Credentials
         run: |
-          IMAGE_DIGEST=$(gcloud container images list-tags $IMAGE_REPO --format="value(digest)" --limit=1)
-          echo "LATEST_IMAGE_SHA=$IMAGE_DIGEST" >> $GITHUB_ENV
-          echo "✅ Latest image SHA: $IMAGE_DIGEST"
+          gcloud container clusters get-credentials $GKE_CLUSTER --zone $GKE_ZONE --project $PROJECT_ID
 
-      - name: 🚀 Apply Rollout with Updated Image (Ensure Latest Image is Pulled)
+      - name: 🔗 Verify GKE Cluster Connection
+        run: |
+          kubectl config current-context
+          kubectl get nodes
+          kubectl api-resources | grep rollouts || echo "⚠️ Rollout API not found!"
+
+      - name: 🛠 Install Argo Rollouts (Ensure CRDs Exist)
+        run: |
+          kubectl create namespace argo-rollouts --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -n argo-rollouts -f https://github.com/argoproj/argo-rollouts/releases/latest/download/install.yaml
+          kubectl rollout restart deployment argo-rollouts -n argo-rollouts
+          sleep 10  # Wait for rollout controller to be ready
+          kubectl get pods -n argo-rollouts
+
+      - name: 🚀 Deploy New Version with Argo Rollouts
         run: |
           kubectl apply -f k8s/catalog-rollout.yaml
-          kubectl argo rollouts set image catalog-service catalog-service=$IMAGE_REPO@$LATEST_IMAGE_SHA
-          echo "✅ New version deployed with digest."
+          kubectl set image rollout/catalog-service catalog-service=$IMAGE_TAG
+          echo "✅ New version deployed in preview mode."
 
-      - name: 🔎 Verify That Kubernetes is Using the Latest Image
+      - name: 🔎 Wait for Rollout Health Check
         run: |
-          DEPLOYED_IMAGE=$(kubectl get pods -l app=catalog-service -o jsonpath="{.items[*].spec.containers[*].image}")
-          echo "🛠 Running image: $DEPLOYED_IMAGE"
-          if [[ "$DEPLOYED_IMAGE" != *"$LATEST_IMAGE_SHA"* ]]; then
-            echo "❌ Kubernetes is not using the latest image!"
+          sleep 30  # Wait for pods to stabilize
+          kubectl argo rollouts get rollout catalog-service --watch &
+          STATUS=""
+          TIMEOUT=120  # Maximum wait time (seconds)
+          ELAPSED=0
+          while [[ "$STATUS" != "Healthy" && "$ELAPSED" -lt "$TIMEOUT" ]]; do
+            STATUS=$(kubectl argo rollouts get rollout catalog-service -o jsonpath='{.status.phase}')
+            echo "Current Rollout Status: $STATUS"
+            sleep 10
+            ELAPSED=$((ELAPSED + 10))
+          done
+          if [[ "$STATUS" != "Healthy" ]]; then
+            echo "❌ New version failed. Rolling back..."
+            kubectl argo rollouts abort catalog-service
             exit 1
           fi
-          echo "✅ Kubernetes is running the latest image."
+          echo "✅ New version passed health checks."
 
-      - name: 🔄 Restart Rollout to Force Image Pull
-        run: |
-          kubectl argo rollouts restart catalog-service
-          echo "✅ Rollout restarted to force update."
-
-      - name: 🔎 Watch Rollout Status Until Healthy
-        run: |
-          kubectl argo rollouts get rollout catalog-service --watch
-          STATUS=$(kubectl argo rollouts get rollout catalog-service -o jsonpath='{.status.phase}')
-          if [ "$STATUS" != "Healthy" ]; then
-            echo "❌ Rollout failed!"
-            exit 1
-          fi
-          echo "✅ Rollout is healthy."
-
-      - name: 🔀 Promote New Version (Switch Traffic)
+      - name: 🔀 Promote Green to Active (Switch Traffic)
         run: |
           kubectl argo rollouts promote catalog-service
-          echo "✅ New version is now live."
+          echo "✅ New version is now active."
 
       - name: ❌ Rollback on Failure
         if: failure()
