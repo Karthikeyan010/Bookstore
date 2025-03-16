@@ -52,6 +52,20 @@ jobs:
         run: |
           gcloud container clusters get-credentials $GKE_CLUSTER --zone $GKE_ZONE --project $PROJECT_ID
 
+      - name: 🔗 Verify GKE Cluster Connection
+        run: |
+          kubectl config current-context
+          kubectl get nodes
+          kubectl api-resources | grep rollouts || echo "⚠️ Rollout API not found!"
+
+      - name: 🛠 Install Argo Rollouts (Ensure CRDs Exist)
+        run: |
+          kubectl create namespace argo-rollouts --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -n argo-rollouts -f https://github.com/argoproj/argo-rollouts/releases/latest/download/install.yaml
+          kubectl rollout restart deployment argo-rollouts -n argo-rollouts
+          sleep 10  # Wait for rollout controller to be ready
+          kubectl get pods -n argo-rollouts
+
       - name: 🚀 Deploy New Version with Argo Rollouts
         run: |
           kubectl apply -f k8s/catalog-rollout.yaml
@@ -60,10 +74,18 @@ jobs:
 
       - name: 🔎 Wait for Rollout Health Check
         run: |
-          kubectl argo rollouts get rollout catalog-service
           sleep 30  # Wait for pods to stabilize
-          STATUS=$(kubectl argo rollouts get rollout catalog-service -o jsonpath='{.status.phase}')
-          if [ "$STATUS" != "Progressing" ] && [ "$STATUS" != "Healthy" ]; then
+          kubectl argo rollouts get rollout catalog-service --watch &
+          STATUS=""
+          TIMEOUT=120  # Maximum wait time (seconds)
+          ELAPSED=0
+          while [[ "$STATUS" != "Healthy" && "$ELAPSED" -lt "$TIMEOUT" ]]; do
+            STATUS=$(kubectl argo rollouts get rollout catalog-service -o jsonpath='{.status.phase}')
+            echo "Current Rollout Status: $STATUS"
+            sleep 10
+            ELAPSED=$((ELAPSED + 10))
+          done
+          if [[ "$STATUS" != "Healthy" ]]; then
             echo "❌ New version failed. Rolling back..."
             kubectl argo rollouts abort catalog-service
             exit 1
