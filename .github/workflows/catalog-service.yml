@@ -68,8 +68,8 @@ jobs:
 
       - name: 🚀 Deploy New Version with Argo Rollouts
         run: |
+          kubectl argo rollouts set image catalog-service catalog-service=$IMAGE_TAG
           kubectl apply -f k8s/catalog-rollout.yaml
-          kubectl set image rollout/catalog-service catalog-service=$IMAGE_TAG
           echo "✅ New version deployed in preview mode."
 
       - name: 🔎 Wait for Rollout Health Check
