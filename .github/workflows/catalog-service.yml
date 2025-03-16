@@ -6,16 +6,14 @@ on:
       - main
     paths:
       - "catalog-service/**"
-      - "k8s/catalog-deployment-blue.yaml"
-      - "k8s/catalog-deployment-green.yaml"
+      - "k8s/catalog-deployment.yaml"
       - "k8s/catalog-service.yaml"
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   GKE_CLUSTER: ${{ secrets.GKE_CLUSTER }}
   GKE_ZONE: ${{ secrets.GKE_ZONE }}
-  CATALOG_IMAGE_BLUE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/catalog-service:v1
-  CATALOG_IMAGE_GREEN: gcr.io/${{ secrets.GCP_PROJECT_ID }}/catalog-service:v2
+  CATALOG_IMAGE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/catalog-service
 
 jobs:
   build-and-deploy:
@@ -49,11 +47,26 @@ jobs:
           ls -l target/  # Verify JAR file exists
           cd ..
 
-      ### **Build & Push Catalog Service (Green Version)**
-      - name: 🏗️ Build & Push Catalog Service
+      ### **Determine Active Deployment**
+      - name: 🔍 Detect Active Environment
+        id: active-env
         run: |
-          docker build --build-arg JAR_FILE=target/catalog-service-0.0.1-SNAPSHOT.jar -t $CATALOG_IMAGE_GREEN ./catalog-service
-          docker push $CATALOG_IMAGE_GREEN
+          ACTIVE_VERSION=$(kubectl get service catalog-service -o jsonpath='{.spec.selector.version}')
+          if [ "$ACTIVE_VERSION" == "blue" ]; then
+            echo "TARGET_VERSION=green" >> $GITHUB_ENV
+            echo "INACTIVE_VERSION=blue" >> $GITHUB_ENV
+            echo "IMAGE_TAG=v2" >> $GITHUB_ENV
+          else
+            echo "TARGET_VERSION=blue" >> $GITHUB_ENV
+            echo "INACTIVE_VERSION=green" >> $GITHUB_ENV
+            echo "IMAGE_TAG=v3" >> $GITHUB_ENV
+          fi
+
+      ### **Build & Push the New Version**
+      - name: 🏗️ Build & Push Catalog Service Image
+        run: |
+          docker build --build-arg JAR_FILE=target/catalog-service-0.0.1-SNAPSHOT.jar -t $CATALOG_IMAGE:${{ env.IMAGE_TAG }} ./catalog-service
+          docker push $CATALOG_IMAGE:${{ env.IMAGE_TAG }}
 
       - name: 🔗 Get GKE Credentials
         run: |
@@ -64,39 +77,41 @@ jobs:
           kubectl cluster-info
           kubectl get nodes
           kubectl get pods --all-namespaces
-          
-      ### **Blue-Green Deployment for Catalog Service**
-      - name: 🚀 Deploy Green Version
-        run: |
-          kubectl apply -f k8s/catalog-deployment-green.yaml
-          kubectl rollout status deployment/catalog-service-green --timeout=120s
-          echo "Green version deployed, now performing health check..."
 
-      - name: ✅ Verify Green Deployment
+      ### **Deploy to Inactive Environment**
+      - name: 🚀 Deploy New Version
+        run: |
+          sed "s/{{VERSION}}/${{ env.TARGET_VERSION }}/g; s|{{IMAGE}}|$CATALOG_IMAGE:${{ env.IMAGE_TAG }}|g" k8s/catalog-deployment.yaml | kubectl apply -f -
+          kubectl rollout status deployment/catalog-service-${{ env.TARGET_VERSION }} --timeout=120s
+          echo "✅ New version deployed to ${{ env.TARGET_VERSION }}"
+
+      ### **Verify Deployment**
+      - name: ✅ Health Check
         id: health-check
         run: |
-          GREEN_HEALTH=$(kubectl get pod -l app=catalog-service,version=green -o jsonpath='{.items[0].status.containerStatuses[0].ready}')
-          if [ "$GREEN_HEALTH" != "true" ]; then
-            echo "❌ Green deployment failed, rolling back..."
+          HEALTH_STATUS=$(kubectl get pod -l app=catalog-service,version=${{ env.TARGET_VERSION }} -o jsonpath='{.items[0].status.containerStatuses[0].ready}')
+          if [ "$HEALTH_STATUS" != "true" ]; then
+            echo "❌ Health check failed, rolling back..."
             exit 1
           fi
-        continue-on-error: true  # ✅ Allow pipeline to continue, so rollback can happen
 
-      - name: 🔀 Switch Traffic to Green
-        if: success()  # ✅ Runs only if all previous steps, including health check, succeeded
+      ### **Switch Traffic to New Version**
+      - name: 🔀 Switch Traffic
+        if: success()
         run: |
-          kubectl patch service catalog-service -p '{"spec": {"selector": {"app": "catalog-service", "version": "green"}}}'
-          echo "✅ Traffic switched to green!"
+          kubectl patch service catalog-service -p '{"spec": {"selector": {"app": "catalog-service", "version": "${{ env.TARGET_VERSION }}"}}}'
+          echo "✅ Traffic switched to ${{ env.TARGET_VERSION }}"
 
-      - name: 🧹 Cleanup Old Blue Deployment (Optional)
-        if: success()  # ✅ Clean up only if Green is stable
+      ### **Cleanup Old Deployment**
+      - name: 🗑️ Cleanup Old Deployment
+        if: success()
         run: |
-          kubectl delete deployment catalog-service-blue || true
-          echo "🗑️ Old Blue version removed."
+          kubectl delete deployment catalog-service-${{ env.INACTIVE_VERSION }} || true
+          echo "🗑️ Old ${{ env.INACTIVE_VERSION }} deployment removed."
 
       ### **Rollback Logic in Case of Failure**
-      - name: ❌ Rollback to Blue on Failure
-        if: failure()  # ✅ Runs only if health check failed
+      - name: ❌ Rollback to Old Version
+        if: failure()
         run: |
-          kubectl patch service catalog-service -p '{"spec": {"selector": {"app": "catalog-service", "version": "blue"}}}'
-          echo "🔄 Traffic reverted to blue!"
+          kubectl patch service catalog-service -p '{"spec": {"selector": {"app": "catalog-service", "version": "${{ env.INACTIVE_VERSION }}"}}}'
+          echo "🔄 Rolled back to ${{ env.INACTIVE_VERSION }}"

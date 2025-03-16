@@ -1,25 +1,25 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: catalog-service-green
+  name: catalog-service-{{VERSION}}
   labels:
     app: catalog-service
-    version: green
+    version: {{VERSION}}
 spec:
   replicas: 2
   selector:
     matchLabels:
       app: catalog-service
-      version: green
+      version: {{VERSION}}
   template:
     metadata:
       labels:
         app: catalog-service
-        version: green
+        version: {{VERSION}}
     spec:
       containers:
         - name: catalog-service
-          image: gcr.io/carbon-stone-453217-v8/catalog-service:v2
+          image: {{IMAGE}}
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
@@ -32,8 +32,8 @@ spec:
               value: "password"
           readinessProbe:
             httpGet:
-              path: /invalid-health  # ✅ Standard Spring Boot health check
+              path: /actuator/health  # ✅ Standard Spring Boot health check 
               port: 8080
-            initialDelaySeconds: 3   # Wait before checking readiness
-            periodSeconds: 5          # Check every 5 seconds
+            initialDelaySeconds: 3
+            periodSeconds: 5
             failureThreshold: 3
