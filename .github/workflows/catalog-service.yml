@@ -6,16 +6,15 @@ on:
       - main
     paths:
       - "catalog-service/**"
-      - "k8s/catalog-deployment-blue.yaml"
-      - "k8s/catalog-deployment-green.yaml"
-      - "k8s/catalog-service.yaml"
+      - "k8s/catalog-rollout.yaml"
+      - "k8s/catalog-service-active.yaml"
+      - "k8s/catalog-service-preview.yaml"
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   GKE_CLUSTER: ${{ secrets.GKE_CLUSTER }}
   GKE_ZONE: ${{ secrets.GKE_ZONE }}
-  CATALOG_IMAGE_BLUE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/catalog-service:v1
-  CATALOG_IMAGE_GREEN: gcr.io/${{ secrets.GCP_PROJECT_ID }}/catalog-service:v2
+  IMAGE_TAG: gcr.io/${{ secrets.GCP_PROJECT_ID }}/catalog-service:${{ github.sha }}
 
 jobs:
   build-and-deploy:
@@ -40,63 +39,43 @@ jobs:
       - name: 🛠 Configure Docker Authentication for GCR
         run: gcloud auth configure-docker gcr.io
 
-      ### **Build the JAR File Before Dockerizing**
-      - name: 🏗️ Build Catalog Service JAR
+      - name: 🏗️ Build and Push Catalog Service Image
         run: |
           cd catalog-service
-          chmod +x mvnw  # Ensure wrapper is executable
-          ./mvnw clean package 
-          ls -l target/  # Verify JAR file exists
-          cd ..
-
-      ### **Build & Push Catalog Service (Green Version)**
-      - name: 🏗️ Build & Push Catalog Service
-        run: |
-          docker build --build-arg JAR_FILE=target/catalog-service-0.0.1-SNAPSHOT.jar -t $CATALOG_IMAGE_GREEN ./catalog-service
-          docker push $CATALOG_IMAGE_GREEN
+          chmod +x mvnw
+          ./mvnw clean package
+          docker build -t $IMAGE_TAG .
+          docker push $IMAGE_TAG
 
       - name: 🔗 Get GKE Credentials
         run: |
           gcloud container clusters get-credentials $GKE_CLUSTER --zone $GKE_ZONE --project $PROJECT_ID
 
-      - name: 🔎 Verify Kubernetes Cluster Connection
+      - name: 🚀 Deploy New Version with Argo Rollouts
         run: |
-          kubectl cluster-info
-          kubectl get nodes
-          kubectl get pods --all-namespaces
-          
-      ### **Blue-Green Deployment for Catalog Service**
-      - name: 🚀 Deploy Green Version
-        run: |
-          kubectl apply -f k8s/catalog-deployment-green.yaml
-          kubectl rollout status deployment/catalog-service-green --timeout=120s
-          echo "Green version deployed, now performing health check..."
+          kubectl apply -f k8s/catalog-rollout.yaml
+          kubectl set image rollout/catalog-service catalog-service=$IMAGE_TAG
+          echo "✅ New version deployed in preview mode."
 
-      - name: ✅ Verify Green Deployment
-        id: health-check
+      - name: 🔎 Wait for Rollout Health Check
         run: |
-          GREEN_HEALTH=$(kubectl get pod -l app=catalog-service,version=green -o jsonpath='{.items[0].status.containerStatuses[0].ready}')
-          if [ "$GREEN_HEALTH" != "true" ]; then
-            echo "❌ Green deployment failed, rolling back..."
+          kubectl argo rollouts get rollout catalog-service
+          sleep 30  # Wait for pods to stabilize
+          STATUS=$(kubectl argo rollouts get rollout catalog-service -o jsonpath='{.status.phase}')
+          if [ "$STATUS" != "Progressing" ] && [ "$STATUS" != "Healthy" ]; then
+            echo "❌ New version failed. Rolling back..."
+            kubectl argo rollouts abort catalog-service
             exit 1
           fi
-        continue-on-error: true  # ✅ Allow pipeline to continue, so rollback can happen
+          echo "✅ New version passed health checks."
 
-      - name: 🔀 Switch Traffic to Green
-        if: success()  # ✅ Runs only if all previous steps, including health check, succeeded
+      - name: 🔀 Promote Green to Active (Switch Traffic)
         run: |
-          kubectl patch service catalog-service -p '{"spec": {"selector": {"app": "catalog-service", "version": "green"}}}'
-          echo "✅ Traffic switched to green!"
+          kubectl argo rollouts promote catalog-service
+          echo "✅ New version is now active."
 
-      - name: 🧹 Cleanup Old Blue Deployment (Optional)
-        if: success()  # ✅ Clean up only if Green is stable
+      - name: ❌ Rollback on Failure
+        if: failure()
         run: |
-          kubectl delete deployment catalog-service-blue || true
-          echo "🗑️ Old Blue version removed."
-
-      ### **Rollback Logic in Case of Failure**
-      - name: ❌ Rollback to Blue on Failure
-        if: failure()  # ✅ Runs only if health check failed
-        run: |
-          kubectl patch service catalog-service -p '{"spec": {"selector": {"app": "catalog-service", "version": "blue"}}}'
-          echo "🔄 Traffic reverted to blue!"
+          kubectl argo rollouts abort catalog-service
+          echo "🔄 Rollback complete."

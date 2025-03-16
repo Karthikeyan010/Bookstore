@@ -1,0 +1,44 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: catalog-service
+spec:
+  replicas: 2
+  strategy:
+    blueGreen:
+      activeService: catalog-service-active  # This service routes traffic to active version
+      previewService: catalog-service-preview  # This service is used for testing new version
+      autoPromotionEnabled: false  # Manual approval required before switching traffic
+  selector:
+    matchLabels:
+      app: catalog-service
+  template:
+    metadata:
+      labels:
+        app: catalog-service
+    spec:
+      containers:
+        - name: catalog-service
+          image: gcr.io/carbon-stone-453217-v8/catalog-service:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: DB_URL
+              value: "jdbc:postgresql://bookstore-db:5432/bookstore"
+            - name: DB_USER
+              value: "postgres"
+            - name: DB_PASSWORD
+              value: "password"
+          resources:
+            requests:
+              memory: "350Mi"
+              cpu: "150m"
+            limits:
+              memory: "450Mi"
+              cpu: "200m"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 3
