@@ -66,39 +66,50 @@ jobs:
           sleep 10  # Wait for rollout controller to be ready
           kubectl get pods -n argo-rollouts
 
+      - name: 🛠 Install Argo Rollouts CLI
+        run: |
+          curl -LO https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64
+          chmod +x kubectl-argo-rollouts-linux-amd64
+          sudo mv kubectl-argo-rollouts-linux-amd64 /usr/local/bin/kubectl-argo-rollouts
+          echo "✅ Argo Rollouts CLI installed."
+
+      - name: 🔎 Check Argo Rollouts CLI Version
+        run: |
+          kubectl-argo-rollouts version
+
       - name: 🚀 Deploy New Version with Argo Rollouts
         run: |
-          kubectl argo rollouts set image catalog-service catalog-service=$IMAGE_TAG
+          kubectl-argo-rollouts set image catalog-service catalog-service=$IMAGE_TAG
           kubectl apply -f k8s/catalog-rollout.yaml
           echo "✅ New version deployed in preview mode."
 
       - name: 🔎 Wait for Rollout Health Check
         run: |
           sleep 30  # Wait for pods to stabilize
-          kubectl argo rollouts get rollout catalog-service --watch &
+          kubectl-argo-rollouts get rollout catalog-service --watch &
           STATUS=""
           TIMEOUT=120  # Maximum wait time (seconds)
           ELAPSED=0
           while [[ "$STATUS" != "Healthy" && "$ELAPSED" -lt "$TIMEOUT" ]]; do
-            STATUS=$(kubectl argo rollouts get rollout catalog-service -o jsonpath='{.status.phase}')
+            STATUS=$(kubectl-argo-rollouts get rollout catalog-service -o jsonpath='{.status.phase}')
             echo "Current Rollout Status: $STATUS"
             sleep 10
             ELAPSED=$((ELAPSED + 10))
           done
           if [[ "$STATUS" != "Healthy" ]]; then
             echo "❌ New version failed. Rolling back..."
-            kubectl argo rollouts abort catalog-service
+            kubectl-argo-rollouts abort catalog-service
             exit 1
           fi
           echo "✅ New version passed health checks."
 
       - name: 🔀 Promote Green to Active (Switch Traffic)
         run: |
-          kubectl argo rollouts promote catalog-service
+          kubectl-argo-rollouts promote catalog-service
           echo "✅ New version is now active."
 
       - name: ❌ Rollback on Failure
         if: failure()
         run: |
-          kubectl argo rollouts abort catalog-service
+          kubectl-argo-rollouts abort catalog-service
           echo "🔄 Rollback complete."
