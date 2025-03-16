@@ -82,38 +82,42 @@ jobs:
           kubectl-argo-rollouts set image catalog-service catalog-service=$IMAGE_TAG
           echo "✅ New version deployed in preview mode."
 
-      - name: 🔎 Wait for Rollout Health Check
+
+      - name: 🔎 Wait for ReplicaSet Health Check
         run: |
-          echo "⏳ Waiting for rollout to become healthy..."
-          TIMEOUT=280  # Maximum wait time in seconds
+          echo "⏳ Waiting for the new ReplicaSet to become healthy..."
+          TIMEOUT=300  # Maximum wait time in seconds
           ELAPSED=0
-          STATUS="Progressing"  # Default status at start
+          REPLICA_STATUS="Progressing"  # Default status
 
-          # Debug: Print rollout details before checking status
-          kubectl-argo-rollouts get rollout catalog-service
+          # Get the latest ReplicaSet name linked to the rollout
+          NEW_RS=$(kubectl-argo-rollouts get rollout catalog-service --output=json | jq -r '.status.currentPodHash')
 
-          # Loop until rollout is Healthy or timeout is reached
-          while [[ "$STATUS" != "Healthy" && "$ELAPSED" -lt "$TIMEOUT" ]]; do
-            STATUS=$(kubectl-argo-rollouts get rollout catalog-service | grep "✔" | awk '{print $2}' || echo "Pending")
+          if [[ -z "$NEW_RS" ]]; then
+            echo "❌ Failed to get the new ReplicaSet. Exiting..."
+            exit 1
+          fi
 
-            echo "⏳ Current Rollout Status: $STATUS"
-            
-            if [[ "$STATUS" == "Healthy" ]]; then
-              echo "✅ Rollout is healthy!"
+          echo "🔎 Watching status of ReplicaSet: catalog-service-${NEW_RS}"
+
+          # Loop until ReplicaSet is Healthy or timeout is reached
+          while [[ "$REPLICA_STATUS" != "✔" && "$ELAPSED" -lt "$TIMEOUT" ]]; do
+            REPLICA_STATUS=$(kubectl-argo-rollouts get rollout catalog-service | grep "catalog-service-${NEW_RS}" | awk '{print $3}' || echo "Pending")
+
+            echo "⏳ Current ReplicaSet Status: $REPLICA_STATUS"
+
+            if [[ "$REPLICA_STATUS" == "✔" ]]; then
+              echo "✅ New ReplicaSet is healthy!"
               exit 0
-            fi
-
-            # Debug: Show full rollout details every 30s
-            if (( ELAPSED % 30 == 0 )); then
-              kubectl-argo-rollouts get rollout catalog-service
             fi
 
             sleep 10
             ELAPSED=$((ELAPSED + 10))
           done
 
-          echo "❌ Rollout did not become healthy in time. Rolling back..."
+          echo "❌ New ReplicaSet did not become healthy in time. Rolling back..."
           exit 1
+
 
       - name: 🔀 Promote Green to Active (Switch Traffic)
         run: |
