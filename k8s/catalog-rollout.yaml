@@ -36,9 +36,3 @@ spec:
             limits:
               memory: "450Mi"
               cpu: "200m"
-          readinessProbe:
-            httpGet:
-              path: /actuator/health
-              port: 8080
-            initialDelaySeconds: 5
-            periodSeconds: 3

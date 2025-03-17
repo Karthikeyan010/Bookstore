@@ -118,6 +118,27 @@ jobs:
           echo "❌ New preview ReplicaSet did not become healthy in time."
           exit 1
 
+      - name: 🔎 Run Integration Tests on Preview Service (Actuator Health)
+        run: |
+          echo "Starting port-forward for catalog-service-preview on port 8080..."
+          # Start port-forwarding in the background and capture its PID.
+          kubectl port-forward svc/catalog-service-preview 8080:8080 &
+          PF_PID=$!
+          echo "Port-forward started with PID $PF_PID. Waiting 5 seconds for connection to establish..."
+          sleep 5
+
+          echo "Running actuator health test on preview service..."
+          # Test the actuator health endpoint
+          if curl --fail http://localhost:8080/actuator/health; then
+            echo "✅ Actuator endpoint is healthy!"
+          else
+            echo "❌ Actuator endpoint test failed!"
+            kill $PF_PID
+            exit 1
+          fi
+
+          # Clean up the port-forward process
+          kill $PF_PID
 
 
       - name: 🔀 Promote Green to Active (Switch Traffic)
