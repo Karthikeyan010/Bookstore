@@ -84,39 +84,40 @@ jobs:
 
       - name: 🔎 Wait for Rollout Health Check
         run: |
-          echo "⏳ Waiting for the new ReplicaSet to become healthy..."
+          echo "⏳ Waiting for new preview ReplicaSet to become healthy..."
           TIMEOUT=300  # Maximum wait time in seconds
           ELAPSED=0
 
-          # Get the latest ReplicaSet name linked to the rollout
-          NEW_RS=$(kubectl-argo-rollouts get rollout catalog-service --output=json | jq -r '.status.currentPodHash')
-
-          if [[ -z "$NEW_RS" ]]; then
-            echo "❌ Failed to get the new ReplicaSet. Exiting..."
-            exit 1
+          # Extract the preview replicaset hash from the rollout JSON
+          PREVIEW_HASH=$(kubectl get rollout catalog-service -o json | jq -r '.status.blueGreen.previewSelector')
+          if [[ -z "$PREVIEW_HASH" || "$PREVIEW_HASH" == "null" ]]; then
+              echo "❌ Failed to get the preview replicaset hash. Exiting..."
+              exit 1
           fi
 
-          REPLICA_SET_NAME="catalog-service-${NEW_RS}"
+          # Construct the ReplicaSet name (assuming the replicaset is named with the prefix and hash)
+          REPLICA_SET_NAME="catalog-service-${PREVIEW_HASH}"
           echo "🔎 Watching ReplicaSet: $REPLICA_SET_NAME"
 
-          # Loop until ReplicaSet is Healthy or timeout is reached
+          # Loop until the ReplicaSet's ready replicas equal its desired replicas
           while [[ "$ELAPSED" -lt "$TIMEOUT" ]]; do
-            # Check the status of the ReplicaSet
-            REPLICA_STATUS=$(kubectl-argo-rollouts get rollout catalog-service | grep "$REPLICA_SET_NAME" | awk '{print $3}' || echo "Pending")
-
-            echo "⏳ Current ReplicaSet Status: $REPLICA_STATUS"
-
-            if [[ "$REPLICA_STATUS" == "✔" ]]; then
-              echo "✅ New ReplicaSet is healthy!"
-              exit 0
-            fi
-
-            sleep 10
-            ELAPSED=$((ELAPSED + 10))
+              DESIRED=$(kubectl get replicaset "$REPLICA_SET_NAME" -o json | jq '.spec.replicas')
+              READY=$(kubectl get replicaset "$REPLICA_SET_NAME" -o json | jq '.status.readyReplicas // 0')
+              echo "⏳ ReplicaSet $REPLICA_SET_NAME: Desired=$DESIRED, Ready=$READY"
+              
+              # Check if ready equals desired (and desired is greater than 0)
+              if [[ "$READY" -eq "$DESIRED" && "$DESIRED" -gt 0 ]]; then
+                  echo "✅ New preview ReplicaSet is healthy!"
+                  exit 0
+              fi
+              
+              sleep 10
+              ELAPSED=$((ELAPSED + 10))
           done
 
-          echo "❌ New ReplicaSet did not become healthy in time. Rolling back..."
+          echo "❌ New preview ReplicaSet did not become healthy in time."
           exit 1
+
 
 
       - name: 🔀 Promote Green to Active (Switch Traffic)
