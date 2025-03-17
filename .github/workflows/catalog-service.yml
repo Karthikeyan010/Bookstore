@@ -82,13 +82,11 @@ jobs:
           kubectl-argo-rollouts set image catalog-service catalog-service=$IMAGE_TAG
           echo "✅ New version deployed in preview mode."
 
-
-      - name: 🔎 Wait for ReplicaSet Health Check
+      - name: 🔎 Wait for Rollout Health Check
         run: |
           echo "⏳ Waiting for the new ReplicaSet to become healthy..."
           TIMEOUT=300  # Maximum wait time in seconds
           ELAPSED=0
-          REPLICA_STATUS="Progressing"  # Default status
 
           # Get the latest ReplicaSet name linked to the rollout
           NEW_RS=$(kubectl-argo-rollouts get rollout catalog-service --output=json | jq -r '.status.currentPodHash')
@@ -98,11 +96,13 @@ jobs:
             exit 1
           fi
 
-          echo "🔎 Watching status of ReplicaSet: catalog-service-${NEW_RS}"
+          REPLICA_SET_NAME="catalog-service-${NEW_RS}"
+          echo "🔎 Watching ReplicaSet: $REPLICA_SET_NAME"
 
           # Loop until ReplicaSet is Healthy or timeout is reached
-          while [[ "$REPLICA_STATUS" != "✔" && "$ELAPSED" -lt "$TIMEOUT" ]]; do
-            REPLICA_STATUS=$(kubectl-argo-rollouts get rollout catalog-service | grep "catalog-service-${NEW_RS}" | awk '{print $3}' || echo "Pending")
+          while [[ "$ELAPSED" -lt "$TIMEOUT" ]]; do
+            # Check the status of the ReplicaSet
+            REPLICA_STATUS=$(kubectl-argo-rollouts get rollout catalog-service | grep "$REPLICA_SET_NAME" | awk '{print $3}' || echo "Pending")
 
             echo "⏳ Current ReplicaSet Status: $REPLICA_STATUS"
 
