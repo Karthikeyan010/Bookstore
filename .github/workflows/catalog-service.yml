@@ -85,7 +85,7 @@ jobs:
       - name: 🔎 Wait for Rollout Health Check
         run: |
           echo "⏳ Waiting for new preview ReplicaSet to become healthy..."
-          TIMEOUT=40  # Maximum wait time in seconds
+          TIMEOUT=300  # Maximum wait time in seconds
           ELAPSED=0
 
           # Extract the preview replicaset hash from the rollout JSON
