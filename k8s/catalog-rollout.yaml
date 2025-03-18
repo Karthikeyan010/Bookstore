@@ -31,8 +31,14 @@ spec:
               value: "password"
           resources:
             requests:
-              memory: "350Mi"
-              cpu: "150m"
-            limits:
-              memory: "450Mi"
+              memory: "250Mi"
               cpu: "200m"
+            limits:
+              memory: "350Mi"
+              cpu: "200m"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 5  # Lower if safe
+            periodSeconds: 3         # Check every 5 seconds
