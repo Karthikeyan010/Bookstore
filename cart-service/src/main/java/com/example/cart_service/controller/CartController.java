@@ -24,7 +24,7 @@ public class CartController {
 
     @PostMapping
     public Cart addToCart(@RequestBody Cart cartItem) {
-        logger.info("Adding item to cart: {}", cartItem);
+        logger.info("Adding item to cart::: {}", cartItem);
         Cart addedItem = cartService.addToCart(cartItem.getBookId(), cartItem.getQuantity());
         logger.info("Item added to cart: {}", addedItem);
         return addedItem;
