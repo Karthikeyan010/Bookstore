@@ -6,7 +6,7 @@ import './App.css';
 
 // Use environment variables for API URLs
 const CATALOG_API_URL = 'http://34.105.202.238:8080/api/catalog';
-const CART_API_URL = 'http://34.89.23.221:8081/api/cart';
+const CART_API_URL = 'http://35.189.101.193:8081/api/cart';
 
 
 function App() {
