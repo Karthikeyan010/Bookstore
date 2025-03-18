@@ -24,3 +24,15 @@ spec:
               value: "postgres"
             - name: DB_PASSWORD
               value: "password"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8081
+            initialDelaySeconds: 3
+            periodSeconds: 5
