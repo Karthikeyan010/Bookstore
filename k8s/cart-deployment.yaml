@@ -7,16 +7,25 @@ spec:
     spec:
       containers:
         - name: cart-container
-          image: your-docker-image
+          image: gcr.io/carbon-stone-453217-v8/cart-service:latest
+          ports:
+            - containerPort: 8081
+          env:
+            - name: DB_URL
+              value: "jdbc:postgresql://postgres-service:5432/bookstore"
+            - name: DB_USER
+              value: "admin"
+            - name: DB_PASSWORD
+              value: "password"
           livenessProbe:
             httpGet:
               path: /health
-              port: 8080
+              port: 8081
             initialDelaySeconds: 5
             periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /health
-              port: 8080
+              port: 8081
             initialDelaySeconds: 3
             periodSeconds: 5
