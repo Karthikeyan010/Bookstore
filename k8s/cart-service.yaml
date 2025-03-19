@@ -9,4 +9,5 @@ spec:
     - protocol: TCP
       port: 8081
       targetPort: 8081
-  type: LoadBalancer 
+  type: LoadBalancer
+  loadBalancerIP: 34.89.23.221 
