@@ -4,15 +4,15 @@ metadata:
   name: catalog-service-hpa
 spec:
   scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: catalog-service 
+    apiVersion: argoproj.io/v1alpha1
+    kind: Rollout
+    name: catalog-service
   minReplicas: 2
   maxReplicas: 8
   metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 50  # Scale when CPU exceeds 50%
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
