@@ -1,0 +1,18 @@
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: bookstore-db-schedule
+  namespace: velero
+spec:
+  # Cron expression: At minute 0 of every 5th hour
+  schedule: "0 */5 * * *"
+  template:
+    # Specify the namespace where your resources reside
+    includedNamespaces:
+      - default
+    # Filter resources using the label selector
+    labelSelector:
+      matchLabels:
+        app: bookstore-db
+    # Enable snapshotting of persistent volumes
+    snapshotVolumes: true

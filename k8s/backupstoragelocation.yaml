@@ -1,0 +1,12 @@
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: default
+  namespace: velero
+spec:
+  provider: gcp
+  objectStorage:
+    bucket: my-new-velero-backups
+  config:
+    credentialsFile: /credentials/credentials-velero.json
+  default: true
